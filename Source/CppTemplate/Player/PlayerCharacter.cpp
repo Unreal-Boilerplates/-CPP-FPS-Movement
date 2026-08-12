@@ -35,9 +35,9 @@ void APlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCom
 
 	PlayerInputComponent -> BindAction("Jump", IE_Pressed, this, &ACharacter::Jump);
 	PlayerInputComponent -> BindAxis("MoveForward", this, &APlayerCharacter::MoveForward);
-	PlayerInputComponent -> BindAxis("MoveRight",this,&APlayerCharacter::MoveRight ); 
-	PlayerInputComponent -> BindAxis("Turn",this,&APlayerCharacter::Turn ); 
-	PlayerInputComponent -> BindAxis("LookUp",this,&APlayerCharacter::LookUp ); 
+	PlayerInputComponent -> BindAxis("MoveRight", this, &APlayerCharacter::MoveRight ); 
+	PlayerInputComponent -> BindAxis("MouseTurn", this, &APlayerCharacter::Turn ); 
+	PlayerInputComponent -> BindAxis("MouseLook", this, &APlayerCharacter::LookUp ); 
 
 }
 
@@ -60,5 +60,6 @@ void APlayerCharacter::Turn(float InputValue)
 
 void APlayerCharacter::LookUp(float InputValue)
 {
+	GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Yellow, FString::FromInt((int)InputValue));
 	AddControllerPitchInput(InputValue);
 }
