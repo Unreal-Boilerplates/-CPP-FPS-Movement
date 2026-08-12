@@ -5,6 +5,9 @@
 #include "InputTriggers.h"
 #include "AC_InputMapper.generated.h"
 
+class APawn;
+class AController;
+class APlayerController;
 class UInputAction;
 class UInputMappingContext;
 class UEnhancedInputComponent;
@@ -63,6 +66,8 @@ private:
     void CallWithValue(UFunction* Function, const FInputActionValue& Value);
 
     // Owner lookups
+    APawn* GetOwnerPawn() const;
+    APlayerController* GetOwnerController() const;
     UEnhancedInputComponent* GetOwnerInputComponent() const;
     UEnhancedInputLocalPlayerSubsystem* GetInputSubsystem() const;
     const UClass* ResolveOwnerClass() const;

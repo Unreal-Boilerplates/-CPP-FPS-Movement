@@ -55,7 +55,7 @@ UAC_InputMapper::UAC_InputMapper()
 void UAC_InputMapper::BeginPlay()
 {
     Super::BeginPlay();
-    if (APawn* Pawn = Cast<APawn>(GetOwner()))
+    if (APawn* Pawn = GetOwnerPawn())
     {
         TrySetupInput();  // already possessed?
         Pawn->ReceiveControllerChangedDelegate.AddDynamic(this, &UAC_InputMapper::HandleControllerChanged);
@@ -141,17 +141,27 @@ void UAC_InputMapper::CallWithValue(UFunction* Function, const FInputActionValue
 
 // --- Owner lookups -----------------------------------------------------------
 
+APawn* UAC_InputMapper::GetOwnerPawn() const
+{
+    return Cast<APawn>(GetOwner());
+}
+
+APlayerController* UAC_InputMapper::GetOwnerController() const
+{
+    APawn* Pawn = GetOwnerPawn();
+    return Pawn ? Cast<APlayerController>(Pawn->GetController()) : nullptr;
+}
+
 UEnhancedInputComponent* UAC_InputMapper::GetOwnerInputComponent() const
 {
-    APawn* Pawn = Cast<APawn>(GetOwner());
+    APawn* Pawn = GetOwnerPawn();
     if (!Pawn || !Pawn->IsPlayerControlled()) return nullptr;
     return Cast<UEnhancedInputComponent>(Pawn->InputComponent);
 }
 
 UEnhancedInputLocalPlayerSubsystem* UAC_InputMapper::GetInputSubsystem() const
 {
-    APawn* Pawn = Cast<APawn>(GetOwner());
-    APlayerController* PC = Pawn ? Cast<APlayerController>(Pawn->GetController()) : nullptr;
+    APlayerController* PC = GetOwnerController();
     ULocalPlayer* LocalPlayer = PC ? PC->GetLocalPlayer() : nullptr;
     return LocalPlayer ? ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(LocalPlayer) : nullptr;
 }
