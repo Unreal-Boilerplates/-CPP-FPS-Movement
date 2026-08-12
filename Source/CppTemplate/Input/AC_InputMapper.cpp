@@ -7,6 +7,33 @@
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
 
+// Writes the action value into a function parameter, converting to its type.
+static void WriteActionValue(FProperty* Param, void* Frame, const FInputActionValue& Value)
+{
+    if (const FFloatProperty* P = CastField<FFloatProperty>(Param))
+    {
+        P->SetPropertyValue_InContainer(Frame, Value.Get<float>());
+        return;
+    }
+    if (const FDoubleProperty* P = CastField<FDoubleProperty>(Param))
+    {
+        P->SetPropertyValue_InContainer(Frame, Value.Get<float>());
+        return;
+    }
+    if (const FBoolProperty* P = CastField<FBoolProperty>(Param))
+    {
+        P->SetPropertyValue_InContainer(Frame, Value.Get<bool>());
+        return;
+    }
+    if (const FStructProperty* P = CastField<FStructProperty>(Param))
+    {
+        void* Dest = P->ContainerPtrToValuePtr<void>(Frame);
+        if (P->Struct == FInputActionValue::StaticStruct())     *static_cast<FInputActionValue*>(Dest) = Value;
+        else if (P->Struct == TBaseStructure<FVector2D>::Get()) *static_cast<FVector2D*>(Dest) = Value.Get<FVector2D>();
+        else if (P->Struct == TBaseStructure<FVector>::Get())   *static_cast<FVector*>(Dest) = Value.Get<FVector>();
+    }
+}
+
 UAC_InputMapper::UAC_InputMapper()
 {
     PrimaryComponentTick.bCanEverTick = false;
@@ -18,72 +45,45 @@ void UAC_InputMapper::BeginPlay()
 
     if (APawn* Pawn = Cast<APawn>(GetOwner()))
     {
-        TrySetupInput(); // in case we are already possessed
-        Pawn->ReceiveControllerChangedDelegate.AddDynamic(
-            this, &UAC_InputMapper::HandleControllerChanged);
+        TrySetupInput();  // already possessed?
+        Pawn->ReceiveControllerChangedDelegate.AddDynamic(this, &UAC_InputMapper::HandleControllerChanged);
     }
 }
 
-void UAC_InputMapper::HandleControllerChanged(APawn* /*Pawn*/, AController* /*OldController*/, AController* /*NewController*/)
+void UAC_InputMapper::HandleControllerChanged(APawn*, AController*, AController*)
 {
     TrySetupInput();
 }
 
 void UAC_InputMapper::TrySetupInput()
 {
-    if (bBound)
-    {
-        return;
-    }
+    if (bBound) return;
 
     APawn* Pawn = Cast<APawn>(GetOwner());
-    if (!Pawn)
-    {
-        return;
-    }
+    APlayerController* PC = Pawn ? Cast<APlayerController>(Pawn->GetController()) : nullptr;
+    UEnhancedInputComponent* EIC = Pawn ? Cast<UEnhancedInputComponent>(Pawn->InputComponent) : nullptr;
+    if (!PC || !EIC) return;   // not possessed / no input component yet
 
-    APlayerController* PC = Cast<APlayerController>(Pawn->GetController());
-    if (!PC)
-    {
-        return; // not yet possessed by a player
-    }
-
-    UEnhancedInputComponent* EIC = Cast<UEnhancedInputComponent>(Pawn->InputComponent);
-    if (!EIC)
-    {
-        return; // input component not created yet
-    }
-
-    // Add the mapping context (optional)
     if (MappingContext)
     {
         if (ULocalPlayer* LP = PC->GetLocalPlayer())
         {
-            if (UEnhancedInputLocalPlayerSubsystem* Subsystem =
-                    ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(LP))
-            {
+            if (auto* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(LP))
                 Subsystem->AddMappingContext(MappingContext, MappingPriority);
-            }
         }
     }
 
-    // Bind each action through a lambda that marshals the value to the target function.
     TWeakObjectPtr<UAC_InputMapper> WeakThis(this);
     for (const FMappedInputBinding& B : Bindings)
     {
-        if (!B.Action || B.FunctionName.IsNone())
-        {
-            continue;
-        }
+        if (!B.Action || B.FunctionName.IsNone()) continue;
 
         const FName Fn = B.FunctionName;
         EIC->BindActionValueLambda(B.Action, B.TriggerEvent,
             [WeakThis, Fn](const FInputActionValue& Value)
             {
                 if (UAC_InputMapper* Self = WeakThis.Get())
-                {
                     Self->DispatchInput(Value, Fn);
-                }
             });
     }
 
@@ -93,126 +93,55 @@ void UAC_InputMapper::TrySetupInput()
 void UAC_InputMapper::DispatchInput(const FInputActionValue& Value, FName FunctionName)
 {
     AActor* Target = GetOwner();
-    if (!Target)
-    {
-        return;
-    }
+    UFunction* Func = Target ? Target->FindFunction(FunctionName) : nullptr;
+    if (!Func) return;
 
-    UFunction* Func = Target->FindFunction(FunctionName);
-    if (!Func)
-    {
-        return;
-    }
-
-    // Find the first non-return parameter, if any.
-    FProperty* FirstParm = nullptr;
-    for (TFieldIterator<FProperty> It(Func); It && It->HasAnyPropertyFlags(CPF_Parm); ++It)
-    {
-        if (It->HasAnyPropertyFlags(CPF_ReturnParm))
-        {
-            continue;
-        }
-        FirstParm = *It;
-        break;
-    }
-
-    // Parameterless function (e.g. Jump / StopJumping) -> just invoke it.
-    if (!FirstParm)
+    if (Func->NumParms == 0)   // parameterless, e.g. Jump
     {
         Target->ProcessEvent(Func, nullptr);
         return;
     }
 
-    // Allocate and initialize a parameter frame sized to the function.
-    void* Params = FMemory::Malloc(FMath::Max<int32>(Func->ParmsSize, 1));
-    FMemory::Memzero(Params, Func->ParmsSize);
+    void* Frame = FMemory_Alloca(Func->ParmsSize);
+    FMemory::Memzero(Frame, Func->ParmsSize);
+
     for (TFieldIterator<FProperty> It(Func); It && It->HasAnyPropertyFlags(CPF_Parm); ++It)
     {
-        It->InitializeValue_InContainer(Params);
-    }
-
-    // Fill the first parameter, converting the action value to the expected type.
-    if (FFloatProperty* FloatProp = CastField<FFloatProperty>(FirstParm))
-    {
-        FloatProp->SetPropertyValue_InContainer(Params, Value.Get<float>());
-    }
-    else if (FDoubleProperty* DoubleProp = CastField<FDoubleProperty>(FirstParm))
-    {
-        DoubleProp->SetPropertyValue_InContainer(Params, static_cast<double>(Value.Get<float>()));
-    }
-    else if (FBoolProperty* BoolProp = CastField<FBoolProperty>(FirstParm))
-    {
-        BoolProp->SetPropertyValue_InContainer(Params, Value.Get<bool>());
-    }
-    else if (FStructProperty* StructProp = CastField<FStructProperty>(FirstParm))
-    {
-        if (StructProp->Struct == FInputActionValue::StaticStruct())
+        if (!It->HasAnyPropertyFlags(CPF_ReturnParm))
         {
-            *StructProp->ContainerPtrToValuePtr<FInputActionValue>(Params) = Value;
-        }
-        else if (StructProp->Struct == TBaseStructure<FVector2D>::Get())
-        {
-            *StructProp->ContainerPtrToValuePtr<FVector2D>(Params) = Value.Get<FVector2D>();
-        }
-        else if (StructProp->Struct == TBaseStructure<FVector>::Get())
-        {
-            *StructProp->ContainerPtrToValuePtr<FVector>(Params) = Value.Get<FVector>();
+            WriteActionValue(*It, Frame, Value);
+            break;
         }
     }
 
-    Target->ProcessEvent(Func, Params);
-
-    // Tear down the parameter frame.
-    for (TFieldIterator<FProperty> It(Func); It && It->HasAnyPropertyFlags(CPF_Parm); ++It)
-    {
-        It->DestroyValue_InContainer(Params);
-    }
-    FMemory::Free(Params);
+    Target->ProcessEvent(Func, Frame);
 }
 
 TArray<FString> UAC_InputMapper::GetBindableFunctionNames() const
 {
     TArray<FString> Names;
-
-    const UClass* OwnerClass = ResolveOwnerClass();
-    if (!OwnerClass)
+    if (const UClass* OwnerClass = ResolveOwnerClass())
     {
-        return Names;
+        for (TFieldIterator<UFunction> It(OwnerClass); It; ++It)
+            Names.Add(It->GetName());
+        Names.Sort();
     }
-
-    for (TFieldIterator<UFunction> It(OwnerClass); It; ++It)
-    {
-        Names.Add(It->GetName());
-    }
-
-    Names.Sort();
     return Names;
 }
 
 const UClass* UAC_InputMapper::ResolveOwnerClass() const
 {
-    // Runtime: the component has a real owning actor.
     if (const AActor* Owner = GetOwner())
-    {
         return Owner->GetClass();
-    }
 
-    // Edit time: the component is a template inside a Blueprint. Walk the outer
-    // chain to find the owning actor's class (a UBlueprintGeneratedClass) or actor.
+    // Edit time: walk the outer chain to the owning Blueprint/actor class.
     for (UObject* Outer = GetOuter(); Outer; Outer = Outer->GetOuter())
     {
         if (const AActor* OuterActor = Cast<AActor>(Outer))
-        {
             return OuterActor->GetClass();
-        }
         if (const UClass* AsClass = Cast<UClass>(Outer))
-        {
             if (AsClass->IsChildOf(AActor::StaticClass()))
-            {
                 return AsClass;
-            }
-        }
     }
-
     return nullptr;
 }

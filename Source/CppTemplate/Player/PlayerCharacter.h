@@ -23,9 +23,6 @@ public:
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
 
-	// Called to bind functionality to input
-	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
-
 protected:
 	UPROPERTY(EditAnywhere)
 	class UCameraComponent* Camera;
@@ -38,7 +35,7 @@ protected:
 
 	UFUNCTION(BlueprintCallable, Category = "Movement")
 	void Turn(float value);
-	
+
 	UFUNCTION(BlueprintCallable, Category = "Movement")
 	void LookUp(float value);
 
