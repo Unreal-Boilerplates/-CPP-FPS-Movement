@@ -30,10 +30,17 @@ protected:
 	UPROPERTY(EditAnywhere)
 	class UCameraComponent* Camera;
 
-	void MoveForward(float InputValue);
-	void MoveRight(float InputValue);
-	void Turn(float InputValue);
-	void LookUp(float InputValue);
+	UFUNCTION(BlueprintCallable, Category = "Movement")
+	void MoveForward(float Value);
+
+	UFUNCTION(BlueprintCallable, Category = "Movement")
+	void MoveRight(float value);
+
+	UFUNCTION(BlueprintCallable, Category = "Movement")
+	void Turn(float value);
+	
+	UFUNCTION(BlueprintCallable, Category = "Movement")
+	void LookUp(float value);
 
 
 };

@@ -32,34 +32,26 @@ void APlayerCharacter::Tick(float DeltaTime)
 void APlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
-
-	PlayerInputComponent -> BindAction("Jump", IE_Pressed, this, &ACharacter::Jump);
-	PlayerInputComponent -> BindAxis("MoveForward", this, &APlayerCharacter::MoveForward);
-	PlayerInputComponent -> BindAxis("MoveRight", this, &APlayerCharacter::MoveRight ); 
-	PlayerInputComponent -> BindAxis("MouseTurn", this, &APlayerCharacter::Turn ); 
-	PlayerInputComponent -> BindAxis("MouseLook", this, &APlayerCharacter::LookUp ); 
-
 }
 
-void APlayerCharacter::MoveForward(float InputValue)
+void APlayerCharacter::MoveForward(float Value)
 {
 	FVector ForwardDirection = GetActorForwardVector();
-	AddMovementInput(ForwardDirection, InputValue);
+	AddMovementInput(ForwardDirection, Value);
 }
 
-void APlayerCharacter::MoveRight(float InputValue)
+void APlayerCharacter::MoveRight(float Value)
 {
 	FVector RightDirection = GetActorRightVector();
-	AddMovementInput(RightDirection, InputValue);
+	AddMovementInput(RightDirection, Value);
 }
 
-void APlayerCharacter::Turn(float InputValue)
+void APlayerCharacter::Turn(float Value)
 {
-	AddControllerYawInput(InputValue);
+	AddControllerYawInput(Value);
 }
 
-void APlayerCharacter::LookUp(float InputValue)
+void APlayerCharacter::LookUp(float Value)
 {
-	GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Yellow, FString::FromInt((int)InputValue));
-	AddControllerPitchInput(InputValue);
+	AddControllerPitchInput(-Value);
 }
