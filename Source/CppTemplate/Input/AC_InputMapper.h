@@ -7,6 +7,9 @@
 
 class UInputAction;
 class UInputMappingContext;
+class UEnhancedInputComponent;
+class UEnhancedInputLocalPlayerSubsystem;
+class UFunction;
 struct FInputActionValue;
 
 // One row: an Input Action + trigger phase -> a function on the owner.
@@ -47,16 +50,30 @@ protected:
     virtual void BeginPlay() override;
 
 private:
+    // Setup
     void TrySetupInput();
+    void AddMappingContext();
+    void BindActions(UEnhancedInputComponent* InputComponent);
+    void BindAction(UEnhancedInputComponent* InputComponent, const FMappedInputBinding& Binding);
+
+    // Dispatch
     void DispatchInput(const FInputActionValue& Value, FName FunctionName);
+    void CallOwnerFunction(UFunction* Function, const FInputActionValue& Value);
+    void CallParameterless(UFunction* Function);
+    void CallWithValue(UFunction* Function, const FInputActionValue& Value);
+
+    // Owner lookups
+    UEnhancedInputComponent* GetOwnerInputComponent() const;
+    UEnhancedInputLocalPlayerSubsystem* GetInputSubsystem() const;
+    const UClass* ResolveOwnerClass() const;
+    const UClass* FindOwnerClassInOuterChain() const;
+    TArray<FString> CollectOwnerFunctionNames() const;
 
     UFUNCTION()
     void HandleControllerChanged(APawn* Pawn, AController* OldController, AController* NewController);
 
     UFUNCTION()
     TArray<FString> GetBindableFunctionNames() const;   // fills the details-panel dropdown
-
-    const UClass* ResolveOwnerClass() const;
 
     bool bBound = false;
 };
