@@ -3,6 +3,7 @@
 
 #include "PlayerCharacter.h"
 #include "Camera/CameraComponent.h"
+#include "Components/SkeletalMeshComponent.h"
 
 
 APlayerCharacter::APlayerCharacter()
@@ -10,10 +11,7 @@ APlayerCharacter::APlayerCharacter()
 
 	PrimaryActorTick.bCanEverTick = true;
 
-	// Keeps camera attached to Pawn
-	Camera = CreateDefaultSubobject<UCameraComponent>(TEXT("Player Camera"));
-	Camera -> SetupAttachment(RootComponent);
-	Camera ->bUsePawnControlRotation = true;
+	
 }
 
 
